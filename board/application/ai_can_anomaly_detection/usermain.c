@@ -237,6 +237,24 @@ LOCAL void preprocess_task(INT stacd, void *exinf)
 	tk_ext_tsk();
 }
 
+/* Print a non-negative float as d.dddddd, since tm_printf has no %f. */
+LOCAL void print_score(float value)
+{
+	uint32_t whole, micros;
+
+	if(value < 0.0f) {
+		tm_printf((UB*)"-");
+		value = -value;
+	}
+	whole = (uint32_t)value;
+	micros = (uint32_t)((value - (float)whole) * 1000000.0f + 0.5f);
+	if(micros >= 1000000u) { /* rounding carried into the whole part */
+		whole++;
+		micros -= 1000000u;
+	}
+	tm_printf((UB*)"%u.%06u", whole, micros);
+}
+
 /* Report the row that completes HOLD flagged rows, and the row the run ends on. */
 LOCAL void scoring_and_detect_task(INT stacd, void *exinf)
 {
@@ -260,6 +278,15 @@ LOCAL void scoring_and_detect_task(INT stacd, void *exinf)
 		if(scored.cycles > maximum_cycles) {
 			maximum_cycles = scored.cycles;
 		}
+		/* Show every scored row so the inference is visibly alive, not just alarms. */
+		tm_printf((UB*)"row %u score ", row.no);
+		print_score(scored.score);
+		tm_printf((UB*)" threshold ");
+		print_score(THRESHOLD_SCORE);
+		tm_printf((UB*)" %s%s\n",
+			detect_flagged(scored.score, THRESHOLD_SCORE, scored.rule_hit)
+				? (UB*)"FLAG" : (UB*)"ok",
+			scored.rule_hit ? (UB*)" rule" : (UB*)"");
 		alarmed = detect_alarmed(&state, row.no, scored.score, THRESHOLD_SCORE,
 			scored.rule_hit, HOLD);
 		if(alarmed != ringing) {
@@ -303,7 +330,7 @@ LOCAL void alive_task(INT stacd, void *exinf)
 
 	while(1) {
 		BSP_LED_Toggle(LED_GREEN);
-		tk_dly_tsk(500);
+		tk_dly_tsk(1000);
 	}
 }
 
